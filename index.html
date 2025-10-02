@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Weekly Nutrition Check‑In</title>
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;}
+  label{display:block;margin-top:15px;}
+  input, textarea, select{width:100%;padding:8px;margin-top:5px;}
+  button{margin-top:20px;padding:10px 20px;}
+</style>
+</head>
+<body>
+<h2>Weekly Nutrition Check‑In</h2>
+<form id="nutriForm">
+  <label>1. How many total calories did you consume yesterday?</label>
+  <input type="number" name="calories" min="0" required>
+
+  <label>2. How many grams of protein did you eat?</label>
+  <input type="number" name="protein" min="0" required>
+
+  <label>3. How many servings of vegetables did you have?</label>
+  <input type="number" name="veggies" min="0" required>
+
+  <label>4. How many servings of fruit did you have?</label>
+  <input type="number" name="fruit" min="0" required>
+
+  <label>5. Did you meet your hydration goal (≥ 2 L water)?</label>
+  <select name="hydration" required>
+    <option value="">Select…</option>
+    <option value="yes">Yes</option>
+    <option value="no">No</option>
+  </select>
+
+  <label>6. How would you rate your overall energy levels yesterday?</label>
+  <select name="energy" required>
+    <option value="">Select…</option>
+    <option value="1">Very low</option>
+    <option value="2">Low</option>
+    <option value="3">Average</option>
+    <option value="4">High</option>
+    <option value="5">Very high</option>
+  </select>
+
+  <label>7. Any meals you felt were “off” (taste, digestion, cravings)?</label>
+  <textarea name="issues" rows="2"></textarea>
+
+  <label>8. Did you take any supplements? (list dose)</label>
+  <textarea name="supplements" rows="2"></textarea>
+
+  <label>9. Brief note for your coach (goals, concerns, etc.)</label>
+  <textarea name="note" rows="3"></textarea>
+
+  <button type="submit">Submit</button>
+</form>
+
+<script>
+// ==== CONFIG – replace with YOUR values ====
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON = 'YOUR-ANON-KEY';   // public anon key, NOT the service role
+// ===========================================
+
+document.getElementById('nutriForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const payload = Object.fromEntries(formData.entries());
+
+  // ---- MEMBER IDENTIFIER ---------------------------------
+  // For a trial you can hard‑code a UUID or use a query param.
+  // Example: https://my‑trial‑site.com/nutrition.html?member=123e4567-e89b-12d3-a456-426614174000
+  const urlParams = new URLSearchParams(window.location.search);
+  const memberId = urlParams.get('member');
+  if (!memberId) {
+    alert('Missing member ID – add ?member=YOUR_UUID to the URL.');
+    return;
+  }
+  // -------------------------------------------------------
+
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/save-nutrition-response`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ member_id: memberId, answers: payload })
+  });
+
+  if (resp.ok) {
+    alert('Thanks! Your answers have been saved.');
+    e.target.reset();
+  } else {
+    const err = await resp.text();
+    alert('Error: ' + err);
+  }
+});
+</script>
+</body>
+</html>
