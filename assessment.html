@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CrossFit Movement Assessment</title>
+<style>
+  body{font-family:Arial,sans-serif;max-width:800px;margin:auto;padding:20px;}
+  h2{margin-top:30px;}
+  label{display:block;margin-top:12px;}
+  select, input{width:100%;padding:8px;margin-top:4px;}
+  button{margin-top:20px;padding:10px 20px;}
+</style>
+</head>
+<body>
+<h1>Weekly Movement Assessment</h1>
+
+<form id="assessmentForm">
+  <!-- Hidden field for member ID (you can pre‑fill via URL param) -->
+  <input type="hidden" id="memberId" name="memberId">
+
+  <!-- Dynamically inject the 56 movement rows via JS -->
+  <div id="movementsContainer"></div>
+
+  <button type="submit">Submit Assessment</button>
+</form>
+
+<script>
+// ==== CONFIG – replace with your Supabase details ====
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON = 'YOUR-ANON-KEY';
+// ====================================================
+
+// Helper: fetch all movements from Supabase
+async function loadMovements() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/movements?select=id,name`, {
+    headers: {
+      apikey: SUPABASE_ANON,
+      Authorization: `Bearer ${SUPABASE_ANON}`
+    }
+  });
+  const data = await res.json();
+  return data; // array of {id, name}
+}
+
+// Render the form rows
+async function renderForm() {
+  const movements = await loadMovements();
+  const container = document.getElementById('movementsContainer');
+
+  movements.forEach(m => {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <h2>${m.name}</h2>
+      <label>
+        <select name="status_${m.id}">
+          <option value="">Select status</option>
+          <option value="✅">✅ Can do</option>
+          <option value="❌">❌ Can’t do</option>
+          <option value="➖">➖ Sort‑of / Working on it</option>
+        </select>
+      </label>
+      <label>Notes (optional)</label>
+      <input type="text" name="note_${m.id}" placeholder="Free‑text note">
+    `;
+    container.appendChild(div);
+  });
+}
+
+// Grab memberId from URL (e.g., ?member=REC_ID)
+function getMemberIdFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('member') || '';
+}
+
+// Submit handler
+document.getElementById('assessmentForm').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const memberId = document.getElementById('memberId').value;
+  if (!memberId) {
+    alert('Missing memberId – add ?member=YOUR_MEMBER_ID to the URL.');
+    return;
+  }
+
+  // Build payload: an array of assessment objects
+  const payload = [];
+  const formData = new FormData(e.target);
+  for (let [key, value] of formData.entries()) {
+    if (key.startsWith('status_') && value) {
+      const movementId = key.split('_')[1];
+      const noteKey = `note_${movementId}`;
+      const note = formData.get(noteKey) || null;
+
+      payload.push({
+        member_id: memberId,
+        movement_id: movementId,
+        status: value,
+        notes: note,
+        week_start: new Date().toISOString().split('T')[0]   // ISO date (YYYY‑MM‑DD)
+      });
+    }
+  }
+
+  // POST to the Edge Function
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/submit-assessment`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ assessments: payload })
+  });
+
+  if (resp.ok) {
+    alert('✅ Assessment saved!');
+    e.target.reset();
+  } else {
+    const err = await resp.text();
+    alert('❌ Error: ' + err);
+  }
+});
+
+// Init
+document.getElementById('memberId').value = getMemberIdFromURL();
+renderForm();
+</script>
+</body>
+</html>
